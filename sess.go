@@ -23,14 +23,20 @@ import (
 )
 
 const (
+	// 3-bytes pseudo bytes for nonce,at front of nonceSize
+	noncePseudo = 3
+
 	// 16-bytes nonce for each packet
 	nonceSize = 16
+
+	// 1-byte pseudo byte for crc checksum, at front of crcSize
+	crcPseudo = 1
 
 	// 4-bytes packet checksum
 	crcSize = 4
 
 	// overall crypto header size
-	cryptHeaderSize = nonceSize + crcSize
+	cryptHeaderSize = nonceSize + crcSize + noncePseudo + crcPseudo
 
 	// maximum packet size
 	mtuLimit = 1500
@@ -536,15 +542,19 @@ func (s *UDPSession) output(buf []byte) {
 
 	// 2&3. crc32 & encryption
 	if s.block != nil {
-		s.nonce.Fill(buf[:nonceSize])
+		s.nonce.Fill(buf[:noncePseudo])
+		s.nonce.Fill(buf[noncePseudo : nonceSize+noncePseudo])
 		checksum := crc32.ChecksumIEEE(buf[cryptHeaderSize:])
-		binary.LittleEndian.PutUint32(buf[nonceSize:], checksum)
+		s.nonce.Fill(buf[nonceSize+noncePseudo : nonceSize+noncePseudo+crcPseudo])
+		binary.LittleEndian.PutUint32(buf[nonceSize+noncePseudo+crcPseudo:], checksum)
 		s.block.Encrypt(buf, buf)
 
 		for k := range ecc {
-			s.nonce.Fill(ecc[k][:nonceSize])
+			s.nonce.Fill(ecc[k][:noncePseudo])
+			s.nonce.Fill(ecc[k][noncePseudo : nonceSize+noncePseudo])
 			checksum := crc32.ChecksumIEEE(ecc[k][cryptHeaderSize:])
-			binary.LittleEndian.PutUint32(ecc[k][nonceSize:], checksum)
+			s.nonce.Fill(ecc[k][nonceSize+noncePseudo : nonceSize+noncePseudo+crcPseudo])
+			binary.LittleEndian.PutUint32(ecc[k][nonceSize+noncePseudo+crcPseudo:], checksum)
 			s.block.Encrypt(ecc[k], ecc[k])
 		}
 	}
@@ -643,10 +653,10 @@ func (s *UDPSession) packetInput(data []byte) {
 	decrypted := false
 	if s.block != nil && len(data) >= cryptHeaderSize {
 		s.block.Decrypt(data, data)
-		data = data[nonceSize:]
-		checksum := crc32.ChecksumIEEE(data[crcSize:])
-		if checksum == binary.LittleEndian.Uint32(data) {
-			data = data[crcSize:]
+		data = data[nonceSize+noncePseudo:]
+		checksum := crc32.ChecksumIEEE(data[crcSize+crcPseudo:])
+		if checksum == binary.LittleEndian.Uint32(data[crcPseudo:]) {
+			data = data[crcSize+crcPseudo:]
 			decrypted = true
 		} else {
 			atomic.AddUint64(&DefaultSnmp.InCsumErrors, 1)
@@ -782,10 +792,10 @@ func (l *Listener) packetInput(data []byte, addr net.Addr) {
 	decrypted := false
 	if l.block != nil && len(data) >= cryptHeaderSize {
 		l.block.Decrypt(data, data)
-		data = data[nonceSize:]
-		checksum := crc32.ChecksumIEEE(data[crcSize:])
-		if checksum == binary.LittleEndian.Uint32(data) {
-			data = data[crcSize:]
+		data = data[nonceSize+noncePseudo:]
+		checksum := crc32.ChecksumIEEE(data[crcSize+crcPseudo:])
+		if checksum == binary.LittleEndian.Uint32(data[crcPseudo:]) {
+			data = data[crcSize+crcPseudo:]
 			decrypted = true
 		} else {
 			atomic.AddUint64(&DefaultSnmp.InCsumErrors, 1)
