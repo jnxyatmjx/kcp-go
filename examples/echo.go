@@ -12,8 +12,9 @@ import (
 
 func main() {
 	key := pbkdf2.Key([]byte("demo pass"), []byte("demo salt"), 1024, 32, sha1.New)
-	block, _ := kcp.NewAESBlockCrypt(key)
-	if listener, err := kcp.ListenWithOptions("127.0.0.1:12345", block, 10, 3); err == nil {
+	//block, _ := kcp.NewAESBlockCrypt(key) // 60422
+	block, _ := kcp.NewNoneBlockCrypt(key) // 60522
+	if listener, err := kcp.ListenWithOptions("0.0.0.0:60522", block, 10, 3); err == nil {
 		// spin-up the client
 		go client()
 		for {
@@ -47,14 +48,16 @@ func handleEcho(conn *kcp.UDPSession) {
 }
 
 func client() {
+	return
 	key := pbkdf2.Key([]byte("demo pass"), []byte("demo salt"), 1024, 32, sha1.New)
 	block, _ := kcp.NewAESBlockCrypt(key)
+	//block, _ := kcp.NewNoneBlockCrypt(key)
 
 	// wait for server to become ready
 	time.Sleep(time.Second)
 
 	// dial to the echo server
-	if sess, err := kcp.DialWithOptions("127.0.0.1:12345", block, 10, 3); err == nil {
+	if sess, err := kcp.DialWithOptions("127.0.0.1:60422", block, 10, 3); err == nil {
 		for {
 			data := time.Now().String()
 			buf := make([]byte, len(data))
@@ -69,7 +72,7 @@ func client() {
 			} else {
 				log.Fatal(err)
 			}
-			time.Sleep(time.Second)
+			time.Sleep(time.Second * 2)
 		}
 	} else {
 		log.Fatal(err)

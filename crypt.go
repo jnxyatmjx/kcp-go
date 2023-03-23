@@ -20,8 +20,8 @@ import (
 )
 
 var (
-	initialVector = []byte{167, 115, 79, 156, 18, 172, 27, 1, 164, 21, 242, 193, 252, 120, 230, 107}
-	saltxor       = `sH3CIVoF#rWLtJo6`
+	initialVector = []byte{187, 215, 79, 176, 189, 172, 127, 31, 14, 121, 242, 193, 242, 123, 231, 87}
+	saltxor       = `Kx&CIVxF!rfLtM1p`
 )
 
 // BlockCrypt defines encryption/decryption methods for a given byte slice.
